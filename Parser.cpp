@@ -11,9 +11,17 @@ void Parser::readParameters(){
     if(!inputfile.is_open()){
         std::cerr<<"Could not open "<<this->filename<<std::endl;
     }
-    for(int i=0;i<this->num_params;i++){
+
+    ;
+    while(true){
         inputfile>>param_name>>param_value;
         params[param_name] = param_value;
+
+        this->num_params++;
+
+        if(inputfile.eof()){
+            break;
+        }
     }
     inputfile.close();
 }

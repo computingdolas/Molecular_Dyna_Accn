@@ -13,7 +13,7 @@
 
 int main(int argc, const char * argv[]) {
     // Reading from file
-    Parser p(10,argv[1]);
+    Parser p(argv[1]);
     p.readParameters();
     p.readInputConfiguration();
 

@@ -22,8 +22,8 @@ public:
     std::vector<real_d> vel;
 
     //Constructor
-    Parser(int num_params, std::string filename){
-        this->num_params = num_params;
+    Parser(std::string filename){
+        this->num_params = 0;
         this->filename = filename;
     }
 
