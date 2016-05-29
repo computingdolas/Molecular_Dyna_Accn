@@ -32,8 +32,6 @@ __global__ void  calcForces(real_d *force,const real_d *position,const real_l nu
 	force[i] = 0.0 ; 
     }
 
-    // Intialising the vector for cell length for x , y ,z directions
-    real_d cellLength[3] = {0.0} ;
 
     // for loop to initialise the vector with appropriate values
 
@@ -63,6 +61,7 @@ __global__ void  calcForces(real_d *force,const real_d *position,const real_l nu
         }
     }
 }
+}
 
 // Finding out the minimum distance between two particle keeping in mind the periodic boundary condition
 
@@ -76,7 +75,7 @@ __device__ void minDist(real_d* relativeVector,const real_d *p,const real_d *n, 
 
     // Iterating over all 27 possibilities to find out the minimum distance
      for (real_d x = n[0] - cellLength[0] ; x <= n[0] + cellLength[0] ; x = x + cellLength[0] )
-         for (real_d y = n[1] - cellLength[1] ; y <= n[1] + cellLength[1] ; y = y+ celllength[1])
+         for (real_d y = n[1] - cellLength[1] ; y <= n[1] + cellLength[1] ; y = y+ cellLength[1])
              for (real_d z = n[2] - cellLength[2] ; z <= n[2] + cellLength[2] ; z = z + cellLength[2]) {
 
                  // Finding out the relative vector
@@ -99,7 +98,8 @@ __device__ void minDist(real_d* relativeVector,const real_d *p,const real_d *n, 
 
 }
 
-
+// Intialising the vector for cell length for x , y ,z directions
+real_d cellLength[3] = {0.0} ;
 // Position update and taking care of periodic boundary conditions
 __global__ void updatePosition(const real_d *force,real_d *position,const real_d* velocity, const real_d * mass,const real_l numparticles,const real_d timestep, const
                                 real_d * const_args) {
@@ -166,7 +166,7 @@ __device__ real_d norm(const real_d *vector) {
 
     real_d sum = 0.0 ;
     for (real_l i =0 ; i < 3 ; ++i){
-        sum  += vector[i] * vector[i] ;#include <cuda_runtime.h>
+        sum  += vector[i] * vector[i] ;
     }
     return sqrt(sum) ;
 }
@@ -188,10 +188,20 @@ __global__ void copyForces(real_d * fold,real_d * fnew, const real_l numparticle
 
 
 //To check if the given value lies betwen x1 and x2
-__device__ bool InRange(real_d x1,real_d x2, real_d value, const  real_d  *const_args, int dim);
+__device__ bool InRange(real_d x1,real_d x2, real_d value, const  real_d  *const_args, int dim){
+    if(value >= x1 && value < x2){
+        return true;
+    }
+    else if(value ==  x2 && x2 == const_args[dim*2+1]){
+        return true;
+    }
+    return false;
+
+}
+
 
 //Reset the buffer with 0s
-__global__ SetToZero(real_l *buffer, real_l buffer_size){
+__global__ void SetToZero(real_l *buffer, real_l buffer_size){
     int idx = threadIdx.x+blockIdx.x*blockDim.x;
     if(idx < buffer_size){
         buffer[idx] = 0;
@@ -211,8 +221,9 @@ __global__ void updateLists(real_l *cell_list, real_l *particle_list, const real
     real_l temp_id = 0;
     cell_list[idx][idy][idz] = 0;
 
+    real_l i = 0;
     //Iterate through all the particles and fill in both lists
-    for(real_l i=0;i<num_particles;i++){
+    for(i=0;i<num_particles;i++){
         if(InRange(lx_min,lx_min+const_args[6],position[3*i],const_args,0)\
            && InRange(ly_min,ly_min+const_args[7],position[3*i+1],const_args,1)\
            && InRange(lz_min,lz_min+const_args[8],position[3*i+2],const_args,2)){
@@ -223,15 +234,6 @@ __global__ void updateLists(real_l *cell_list, real_l *particle_list, const real
                 temp_id = cell_list[idx][idy][idz]-1;
                 while(particle_list[temp_id] != 0){
                     temp_id = particle_list[temp_id]-1;
-                };{
-                    if(value >= x1 && value < x2){
-                        return true;
-                    }
-                    else if(value ==  x2 && x2 == const_args[dim*2+1]){
-                        return true;
-                    }
-                    return false;
-
                 }
                 particle_list[temp_id] = i+1;
                 particle_list[i] = 0;
@@ -254,16 +256,6 @@ __global__ void updateListsPp(real_l *cell_list, real_l *particle_list, const re
 
 }
 
-__device__ bool InRange(real_d x1,real_d x2, real_d value, const  real_d  *const_args, int dim){
-    if(value >= x1 && value < x2){
-        return true;
-    }
-    else if(value ==  x2 && x2 == const_args[dim*2+1]){
-        return true;
-    }
-    return false;
-
-}
 
 
 

@@ -36,9 +36,9 @@ int main(int argc, const char * argv[]) {
     real_l yn = std::stol(p.params["yn"]);
     real_l zn = std::stol(p.params["zn"]);
 
-    real_l len_x = (x_max-x_min)/xn;
-    real_l len_y = (y_max-y_min)/yn;
-    real_l len_z = (z_max-z_min)/zn;
+    real_l len_x = (xmax-xmin)/xn;
+    real_l len_y = (ymax-ymin)/yn;
+    real_l len_z = (zmax-zmin)/zn;
 
     // number of Particles
     const real_l numparticles = p.num_particles ;
@@ -52,10 +52,21 @@ int main(int argc, const char * argv[]) {
     cudaDeviceBuffer<real_d> forcenew(numparticles,PhysicalQuantity::Vector) ;
     cudaDeviceBuffer<real_l> cell_list(numcells,PhysicalQuantity::Scalar);
     cudaDeviceBuffer<real_l> particle_list(numparticles,PhysicalQuantity::Scalar);
+    cudaDeviceBuffer<real_d> const_args(9,PhysicalQuantity::Scalar);
 
     //Initiliazing the buffers for mass,velocity and position
     p.fillBuffers(mass,velocity,position);
 
+    //Filling in the host data for the constant arguements
+    const_args[0] = xmin;
+    const_args[1] = xmax;
+    const_args[2] = ymin;
+    const_args[3] = ymax;
+    const_args[4] = zmin;
+    const_args[5] = zmax;
+    const_args[6] = len_x;
+    const_args[7] = len_y;
+    const_args[8] = len_z;
 
     // Allocating memory on Device
     mass.allocateOnDevice();
@@ -65,6 +76,7 @@ int main(int argc, const char * argv[]) {
     forcenew.allocateOnDevice();
     cell_list.allocateOnDevice();
     particle_list.allocateOnDevice();
+    const_args.allocateOnDevice();
 
     //Copy to Device
     mass.copyToDevice();
@@ -74,6 +86,7 @@ int main(int argc, const char * argv[]) {
     forcenew.copyToDevice();
     cell_list.copyToDevice();
     particle_list.copyToDevice();
+    const_args.copyToDevice();
 
 
     VTKWriter writer(vtk_name) ;
@@ -82,7 +95,7 @@ int main(int argc, const char * argv[]) {
     real_l num_blocks ;
 
     if(numparticles % threads_per_blocks ==0) num_blocks = numparticles / threads_per_blocks ;
-    else num_blocks = (numparticles / threads_per_blocks) + 1 ;
+    else num_blocks = (numparticles / threads_per_blocks) + 1;
 
     //std::cout<<num_blocks<<" "<<threads_per_blocks<<std::endl;
     real_d time_taken = 0.0 ;
@@ -93,17 +106,25 @@ int main(int argc, const char * argv[]) {
 
         real_l iter = 0 ;
         // calculate Initial forces
-        calcForces<<<num_blocks ,threads_per_blocks>>>(forcenew.devicePtr,position.devicePtr,numparticles,sigma,epsilon,r_cut) ;
+        calcForces<<<num_blocks ,threads_per_blocks>>>(forcenew.devicePtr,position.devicePtr,numparticles,sigma,epsilon,r_cut,const_args.devicePtr);
         for(real_d t =0.0 ; t < time_end ; t+= timestep_length ) {
             time.reset();
+
+            //Reset the linked lists to 0
+            SetToZero<<<1,numcells>>>(cell_list.devicePtr,numcells);
+            SetToZero<<<1,numcells>>>(particle_list.devicePtr,numparticles);
+
+            //Update the linked list
+            updateLists<<<1,numcells>>>(cell_list.devicePtr,particle_list.devicePtr,position.devicePtr,const_args.devicePtr,numparticles);
+
             // Update the Position
-            updatePosition<<<num_blocks,threads_per_blocks>>>(forcenew.devicePtr,position.devicePtr,velocity.devicePtr,mass.devicePtr,numparticles,timestep_length);
+            updatePosition<<<num_blocks,threads_per_blocks>>>(forcenew.devicePtr,position.devicePtr,velocity.devicePtr,mass.devicePtr,numparticles,timestep_length,const_args.devicePtr);
 
             // Copy the forces
             copyForces<<<num_blocks,threads_per_blocks>>>(forceold.devicePtr,forcenew.devicePtr, numparticles);
 
             // Calculate New forces
-            calcForces<<<num_blocks,threads_per_blocks>>>(forcenew.devicePtr,position.devicePtr,numparticles, sigma,epsilon);
+            calcForces<<<num_blocks,threads_per_blocks>>>(forcenew.devicePtr,position.devicePtr,numparticles, sigma,epsilon,r_cut,const_args.devicePtr);
 
             // Update the velocity
             updateVelocity<<<num_blocks,threads_per_blocks>>>(forcenew.devicePtr,forceold.devicePtr,velocity.devicePtr,mass.devicePtr,numparticles,timestep_length);
