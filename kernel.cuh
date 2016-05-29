@@ -7,7 +7,7 @@
 __device__ void lenardJonesPotential(const real_d *relativeVector,real_d * forceVector ,const real_d sigma , const real_d epislon) ;
 
 // Calculation of the forces
-__global__ void  calcForces(real_d *force,const real_d *position,const real_l numParticles ,const real_d sigma, const real_d epislon){
+__global__ void  calcForces(real_d *force,const real_d *position,const real_l numParticles ,const real_d sigma, const real_d epislon,const real_d rcutoff){
 
 
     real_l idx = threadIdx.x + blockIdx.x * blockDim.x ;
@@ -36,13 +36,20 @@ __global__ void  calcForces(real_d *force,const real_d *position,const real_l nu
             relativeVector[1] = position[vidxp+1] - position[vidxn+1] ;
             relativeVector[2] = position[vidxp+2] - position[vidxn+2] ;
 
-            // Find put the force between these tow particle
-            lenardJonesPotential(relativeVector,forceVector ,sigma,epislon) ;
-            force[vidxp] +=    forceVector[0] ;
-            force[vidxp+1] +=  forceVector[1] ;
-            force[vidxp+2] +=  forceVector[2] ;
-
-        }
+            // Find the magnitude of relative vector and if it is less than cuttoff radius , then potential is evaluated otherwise , explicitly zero force is given
+            // Magnitude of relative vector
+            if(norm(relativeVector) < rcutoff){
+                // Find the force between these tow particle
+                lenardJonesPotential(relativeVector,forceVector ,sigma,epislon) ;
+                force[vidxp]   +=  forceVector[0] ;
+                force[vidxp+1] +=  forceVector[1] ;
+                force[vidxp+2] +=  forceVector[2] ;
+            }
+            else{
+                force[vidxp]   +=  0.0 ;
+                force[vidxp+1] +=  0.0 ;
+                force[vidxp+2] +=  0.0 ;
+            }
     }
     }
 }
@@ -90,6 +97,16 @@ __device__ void lenardJonesPotential(const real_d *relativeVector,real_d * force
     forceVector[1] = epislonConstant * pow(sigmaConstant,6.0) * con * relativeVector[1] ;
     forceVector[2] = epislonConstant * pow(sigmaConstant,6.0) * con * relativeVector[2] ;
     	   
+}
+
+// Calculate the magnitude of the relative vector
+__device__ real_d norm(const real_d *vector) {
+
+    real_d sum = 0.0 ;
+    for (real_l i =0 ; i < 3 ; ++i){
+        sum  += vector[i] * vector[i] ;
+    }
+    return sqrt(sum) ;
 }
 
 // Copying the forces
