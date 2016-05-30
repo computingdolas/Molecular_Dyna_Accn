@@ -16,7 +16,7 @@ int main(int argc, const char * argv[]) {
     Parser p(argv[1]);
     p.readParameters();
     p.readInputConfiguration();
-
+    
     // Parameters from the file
     real_d time_end = std::stod(p.params["time_end"]) ;
     real_d timestep_length = std::stod(p.params["timestep_length"]) ;
@@ -26,15 +26,15 @@ int main(int argc, const char * argv[]) {
     real_l vtk_out_freq = std::stol(p.params["vtk_out_freq"]) ;
     real_l threads_per_blocks = std::stol(p.params["cl_workgroup_1dsize"]) ;
     std::string vtk_name = p.params["vtk_out_name_base"] ;
-    real_d xmin = std::stod(p.params["xmin"]);
-    real_d xmax = std::stod(p.params["xmax"]);
-    real_d ymin = std::stod(p.params["ymin"]);
-    real_d ymax = std::stod(p.params["ymax"]);
-    real_d zmin = std::stod(p.params["zmin"]);
-    real_d zmax = std::stod(p.params["zmax"]);
-    real_l xn = std::stol(p.params["xn"]);
-    real_l yn = std::stol(p.params["yn"]);
-    real_l zn = std::stol(p.params["zn"]);
+    real_d xmin = std::stod(p.params["x_min"]);
+    real_d xmax = std::stod(p.params["x_max"]);
+    real_d ymin = std::stod(p.params["y_min"]);
+    real_d ymax = std::stod(p.params["y_max"]);
+    real_d zmin = std::stod(p.params["z_min"]);
+    real_d zmax = std::stod(p.params["z_max"]);
+    real_l xn = std::stol(p.params["x_n"]);
+    real_l yn = std::stol(p.params["y_n"]);
+    real_l zn = std::stol(p.params["z_n"]);
 
     real_l len_x = (xmax-xmin)/xn;
     real_l len_y = (ymax-ymin)/yn;
@@ -97,7 +97,7 @@ int main(int argc, const char * argv[]) {
     if(numparticles % threads_per_blocks ==0) num_blocks = numparticles / threads_per_blocks ;
     else num_blocks = (numparticles / threads_per_blocks) + 1;
 
-    //std::cout<<num_blocks<<" "<<threads_per_blocks<<std::endl;
+    std::cout<<"The number of blocks and threads/block resp are: "<<num_blocks<<" "<<threads_per_blocks<<std::endl;
     real_d time_taken = 0.0 ;
 
     HESPA::Timer time ;
@@ -105,8 +105,8 @@ int main(int argc, const char * argv[]) {
     {
 
         real_l iter = 0 ;
-        // calculate Initial forces
-        calcForces<<<num_blocks ,threads_per_blocks>>>(forcenew.devicePtr,position.devicePtr,numparticles,sigma,epsilon,r_cut,const_args.devicePtr);
+        //calculate Initial forces
+        //calcForces<<<num_blocks ,threads_per_blocks>>>(forcenew.devicePtr,position.devicePtr,numparticles,sigma,epsilon,r_cut,const_args.devicePtr);
         for(real_d t =0.0 ; t < time_end ; t+= timestep_length ) {
             time.reset();
 
@@ -116,20 +116,29 @@ int main(int argc, const char * argv[]) {
 
             //Update the linked list
             updateLists<<<1,numcells>>>(cell_list.devicePtr,particle_list.devicePtr,position.devicePtr,const_args.devicePtr,numparticles);
+            cudaDeviceSynchronize();
+            std::cout<<"Lists updated.........."<<std::endl;
 
             // Update the Position
             updatePosition<<<num_blocks,threads_per_blocks>>>(forcenew.devicePtr,position.devicePtr,velocity.devicePtr,mass.devicePtr,numparticles,timestep_length,const_args.devicePtr);
+            cudaDeviceSynchronize();
+            std::cout<<"Position updated.........."<<std::endl;
 
             // Copy the forces
             copyForces<<<num_blocks,threads_per_blocks>>>(forceold.devicePtr,forcenew.devicePtr, numparticles);
+            cudaDeviceSynchronize();
+            std::cout<<"Forces copied"<<std::endl;
 
             // Calculate New forces
             calcForces<<<num_blocks,threads_per_blocks>>>(forcenew.devicePtr,position.devicePtr,numparticles, sigma,epsilon,r_cut,const_args.devicePtr);
+            cudaDeviceSynchronize();
+            std::cout<<"Forces calculated"<<std::endl;
 
             // Update the velocity
             updateVelocity<<<num_blocks,threads_per_blocks>>>(forcenew.devicePtr,forceold.devicePtr,velocity.devicePtr,mass.devicePtr,numparticles,timestep_length);
-
             cudaDeviceSynchronize();
+            cudaPeekAtLastError();
+            std::cout<<"Velocities updated"<<std::endl;
             time_taken += time.elapsed();
 
             if(iter % vtk_out_freq == 0){

@@ -12,6 +12,7 @@ __device__ void minDist(real_d* relativeVector,const real_d *p,const real_d *n, 
 // Calculating the norm of the distance
 __device__ real_d norm(const real_d *vector) ;
 
+
 // Calculation of the forces for brute force calculation
 __global__ void  calcForces(real_d *force,const real_d *position,const real_l numParticles ,const real_d sigma, const real_d epislon,const real_d rcutoff, const real_d * const_args){
 
@@ -99,10 +100,9 @@ __device__ void minDist(real_d* relativeVector,const real_d *p,const real_d *n, 
 }
 
 // Intialising the vector for cell length for x , y ,z directions
-real_d cellLength[3] = {0.0} ;
+//real_d cellLength[3] = {0.0} ;
 // Position update and taking care of periodic boundary conditions
-__global__ void updatePosition(const real_d *force,real_d *position,const real_d* velocity, const real_d * mass,const real_l numparticles,const real_d timestep, const
-                                real_d * const_args) {
+__global__ void updatePosition(const real_d *force,real_d *position,const real_d* velocity, const real_d * mass,const real_l numparticles,const real_d timestep, const real_d* const_args) {
 
     real_l idx = threadIdx.x + blockIdx.x * blockDim.x ;
     if(idx < numparticles ){
@@ -213,13 +213,16 @@ __global__ void updateLists(real_l *cell_list, real_l *particle_list, const real
     real_l idx = threadIdx.x+blockIdx.x*blockDim.x;
     real_l idy = threadIdx.y+blockIdx.y*blockDim.y;
     real_l idz = threadIdx.z+blockIdx.z*blockDim.z;
+    
+    real_l id_g = idz*(gridDim.x*blockDim.x*gridDim.y*blockDim.y) + idy*(gridDim.x*blockDim.x) + idx;
 
+    //Finding the coordinates
     real_l lx_min = const_args[0]+const_args[6]*idx;
     real_l ly_min = const_args[2]+const_args[7]*idy;
     real_l lz_min = const_args[4]+const_args[8]*idz;
 
     real_l temp_id = 0;
-    cell_list[idx][idy][idz] = 0;
+    cell_list[id_g] = 0;
 
     real_l i = 0;
     //Iterate through all the particles and fill in both lists
@@ -227,11 +230,11 @@ __global__ void updateLists(real_l *cell_list, real_l *particle_list, const real
         if(InRange(lx_min,lx_min+const_args[6],position[3*i],const_args,0)\
            && InRange(ly_min,ly_min+const_args[7],position[3*i+1],const_args,1)\
            && InRange(lz_min,lz_min+const_args[8],position[3*i+2],const_args,2)){
-            if(cell_list[idx][idy][idz] == 0){
-                cell_list[idx][idy][idz] = i+1;
+            if(cell_list[id_g] == 0){
+                cell_list[id_g] = i+1;
             }
             else{
-                temp_id = cell_list[idx][idy][idz]-1;
+                temp_id = cell_list[id_g]-1;
                 while(particle_list[temp_id] != 0){
                     temp_id = particle_list[temp_id]-1;
                 }
