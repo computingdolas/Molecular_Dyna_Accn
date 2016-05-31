@@ -106,7 +106,7 @@ int main(int argc, const char * argv[]) {
 
         real_l iter = 0 ;
         //calculate Initial forces
-        //calcForces<<<num_blocks ,threads_per_blocks>>>(forcenew.devicePtr,position.devicePtr,numparticles,sigma,epsilon,r_cut,const_args.devicePtr);
+        calcForces<<<num_blocks ,threads_per_blocks>>>(forcenew.devicePtr,position.devicePtr,numparticles,sigma,epsilon,r_cut,const_args.devicePtr);
         for(real_d t =0.0 ; t < time_end ; t+= timestep_length ) {
             time.reset();
 

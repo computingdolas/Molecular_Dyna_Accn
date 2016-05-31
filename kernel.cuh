@@ -36,14 +36,15 @@ __global__ void  calcForces(real_d *force,const real_d *position,const real_l nu
 
     // for loop to initialise the vector with appropriate values
 
-    for (real_l i = 0 ; i < numParticles ; ++i){
+    for (real_l i = 0 ; i < numParticles/4 ; ++i){
         if(i != idx){
             // Find out the index of particle
             real_l vidxn = i * 3 ;
 
             // Find out the realtive vector
             // Relative vector updation has to be done on the minDist device function and it has to be removed from here
-            minDist(relativeVector,&position[vidxp],&position[vidxn], &const_args[6]);
+//		printf("Here\n");
+           minDist(relativeVector,&position[vidxp],&position[vidxn], &const_args[6]);
 
             // Find the magnitude of relative vector and if it is less than cuttoff radius , then potential is evaluated otherwise , explicitly zero force is given
             // Magnitude of relative vector
@@ -69,16 +70,18 @@ __global__ void  calcForces(real_d *force,const real_d *position,const real_l nu
 __device__ void minDist(real_d* relativeVector,const real_d *p,const real_d *n, const real_d * cellLength) {
 
     // Dummy distance
-    real_d distold = cellLength[0] * cellLength[0] * cellLength[0] ;
+    real_d distold = cellLength[0] * cellLength[1] * cellLength[2] ; 
 
+ //   printf("Working\n") ; 
     // Temporary relative vector array
     real_d tempRelativeVector[3] = {0.0} ;
 
     // Iterating over all 27 possibilities to find out the minimum distance
-     for (real_d x = n[0] - cellLength[0] ; x <= n[0] + cellLength[0] ; x = x + cellLength[0] )
-         for (real_d y = n[1] - cellLength[1] ; y <= n[1] + cellLength[1] ; y = y+ cellLength[1])
+     for (real_d x = n[0] - cellLength[0] ; x <= n[0] + cellLength[0] ; x = x + cellLength[0] ){
+         for (real_d y = n[1] - cellLength[1] ; y <= n[1] + cellLength[1] ; y = y+ cellLength[1]){
              for (real_d z = n[2] - cellLength[2] ; z <= n[2] + cellLength[2] ; z = z + cellLength[2]) {
-
+		
+//		printf("here in loop\n");
                  // Finding out the relative vector
                  tempRelativeVector[0] = p[0] - x ;
                  tempRelativeVector[1] = p[1] - y ;
@@ -88,14 +91,18 @@ __device__ void minDist(real_d* relativeVector,const real_d *p,const real_d *n, 
                  real_d dist = norm(tempRelativeVector) ;
 
                  // Holding the minimum value and finding out the minimum of all of them
-                 if(dist < distold){
+                /* 
+		if(dist < distold){
                      relativeVector[0] = p[0] - x ;
                      relativeVector[1] = p[1] - y ;
                      relativeVector[2] = p[2] - z ;
                      distold = dist ;
                  }
+		*/
 
             }
+	}
+     }
 
 }
 
