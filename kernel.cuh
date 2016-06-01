@@ -28,6 +28,11 @@ __global__ void  calcForces(real_d *force,const real_d *position,const real_l nu
     //Force Vector
     real_d forceVector[3] = {0.0000000000,0.00000000000,0.0000000000} ;
 
+    //Domain lengths
+    real_d dom_length[3] = {0.0,0.0,0.0};
+    for(real_l i=0;i<3;i++){
+        dom_length[i] = const_args[i*2+1]-const_args[i*2];
+    }
     // Initialising the force again to zero
     for (real_l i =0 ; i < numParticles * 3;++ i ){
 	force[i] = 0.0 ; 
@@ -36,15 +41,18 @@ __global__ void  calcForces(real_d *force,const real_d *position,const real_l nu
 
     // for loop to initialise the vector with appropriate values
 
-    for (real_l i = 0 ; i < numParticles/4 ; ++i){
+    for (real_l i = 0 ; i < numParticles ; ++i){
         if(i != idx){
             // Find out the index of particle
             real_l vidxn = i * 3 ;
 
             // Find out the realtive vector
             // Relative vector updation has to be done on the minDist device function and it has to be removed from here
-//		printf("Here\n");
-           minDist(relativeVector,&position[vidxp],&position[vidxn], &const_args[6]);
+            relativeVector[0] = position[vidxp] - position[vidxn] ;
+            relativeVector[1] = position[vidxp+1] - position[vidxn+1] ;
+            relativeVector[2] = position[vidxp+2] - position[vidxn+2] ;
+
+            minDist(relativeVector,&position[vidxp],&position[vidxn], dom_length);
 
             // Find the magnitude of relative vector and if it is less than cuttoff radius , then potential is evaluated otherwise , explicitly zero force is given
             // Magnitude of relative vector
@@ -60,6 +68,7 @@ __global__ void  calcForces(real_d *force,const real_d *position,const real_l nu
                 force[vidxp+1] +=  0.0 ;
                 force[vidxp+2] +=  0.0 ;
             }
+
         }
     }
 }
@@ -67,12 +76,11 @@ __global__ void  calcForces(real_d *force,const real_d *position,const real_l nu
 
 // Finding out the minimum distance between two particle keeping in mind the periodic boundary condition
 
-__device__ void minDist(real_d* relativeVector,const real_d *p,const real_d *n, const real_d * cellLength) {
+__device__ void minDist(real_d* relativeVector,const real_d *p,const real_d *n, const real_d * cellLength) {//Here the cellLength is actually the domain length
 
     // Dummy distance
-    real_d distold = cellLength[0] * cellLength[1] * cellLength[2] ; 
+    real_d distold = norm(relativeVector) ;
 
- //   printf("Working\n") ; 
     // Temporary relative vector array
     real_d tempRelativeVector[3] = {0.0} ;
 
@@ -80,28 +88,26 @@ __device__ void minDist(real_d* relativeVector,const real_d *p,const real_d *n, 
      for (real_d x = n[0] - cellLength[0] ; x <= n[0] + cellLength[0] ; x = x + cellLength[0] ){
          for (real_d y = n[1] - cellLength[1] ; y <= n[1] + cellLength[1] ; y = y+ cellLength[1]){
              for (real_d z = n[2] - cellLength[2] ; z <= n[2] + cellLength[2] ; z = z + cellLength[2]) {
-		
-//		printf("here in loop\n");
+
                  // Finding out the relative vector
-                 tempRelativeVector[0] = p[0] - x ;
-                 tempRelativeVector[1] = p[1] - y ;
-                 tempRelativeVector[2] = p[2] - z ;
+                 tempRelativeVector[0] = p[0] -x;
+                 tempRelativeVector[1] = p[1] -y;
+                 tempRelativeVector[2] = p[2] -z;
 
                  // Find out the modulus of the distance
                  real_d dist = norm(tempRelativeVector) ;
 
                  // Holding the minimum value and finding out the minimum of all of them
-                /* 
-		if(dist < distold){
+
+                 if(dist < distold){
                      relativeVector[0] = p[0] - x ;
                      relativeVector[1] = p[1] - y ;
                      relativeVector[2] = p[2] - z ;
                      distold = dist ;
                  }
-		*/
 
             }
-	}
+        }
      }
 
 }
@@ -112,6 +118,7 @@ __device__ void minDist(real_d* relativeVector,const real_d *p,const real_d *n, 
 __global__ void updatePosition(const real_d *force,real_d *position,const real_d* velocity, const real_d * mass,const real_l numparticles,const real_d timestep, const real_d* const_args) {
 
     real_l idx = threadIdx.x + blockIdx.x * blockDim.x ;
+
     if(idx < numparticles ){
 
         real_l vidx = idx * 3 ;
@@ -123,16 +130,16 @@ __global__ void updatePosition(const real_d *force,real_d *position,const real_d
         // CHecking if the particle has left the physical domain direction wise ,for each direction
 
         // Checking for the x direction
-        if (position[vidx] <= const_args[0]) position[vidx] += const_args[6] ;
-        if (position[vidx] >= const_args[1]) position[vidx] -= const_args[6] ;
+        if (position[vidx] < const_args[0]) position[vidx] += (const_args[1]-const_args[0]) ;
+        if (position[vidx] > const_args[1]) position[vidx] -= (const_args[1]-const_args[0]) ;
 
         // Checking for the y direction
-        if (position[vidx+1] <= const_args[2]) position[vidx] += const_args[7] ;
-        if (position[vidx+1] >= const_args[3]) position[vidx] -= const_args[7] ;
+        if (position[vidx+1] < const_args[2]) position[vidx+1] += (const_args[3]-const_args[2]) ;
+        if (position[vidx+1] > const_args[3]) position[vidx+1] -= (const_args[3]-const_args[2]) ;
 
         // CHecking for z direction and updating the same
-        if (position[vidx+2] <= const_args[4]) position[vidx] += const_args[8] ;
-        if (position[vidx+2] >= const_args[5]) position[vidx] -= const_args[8] ;
+        if (position[vidx+2] < const_args[4]) position[vidx+2] += (const_args[5]-const_args[4]) ;
+        if (position[vidx+2] > const_args[5]) position[vidx+2] -= (const_args[5]-const_args[4]) ;
 
     }
 }

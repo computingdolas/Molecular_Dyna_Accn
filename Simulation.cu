@@ -36,9 +36,9 @@ int main(int argc, const char * argv[]) {
     real_l yn = std::stol(p.params["y_n"]);
     real_l zn = std::stol(p.params["z_n"]);
 
-    real_l len_x = (xmax-xmin)/xn;
-    real_l len_y = (ymax-ymin)/yn;
-    real_l len_z = (zmax-zmin)/zn;
+    real_d len_x = (xmax-xmin)/xn;
+    real_d len_y = (ymax-ymin)/yn;
+    real_d len_z = (zmax-zmin)/zn;
 
     // number of Particles
     const real_l numparticles = p.num_particles ;
@@ -110,6 +110,16 @@ int main(int argc, const char * argv[]) {
         for(real_d t =0.0 ; t < time_end ; t+= timestep_length ) {
             time.reset();
 
+            if(iter % vtk_out_freq == 0){
+                // copy to host back
+                forcenew.copyToHost();
+                forceold.copyToHost();
+                position.copyToHost();
+                velocity.copyToHost();
+                writer.writeVTKOutput(mass,position,velocity,numparticles);
+            }
+
+
             //Reset the linked lists to 0
             SetToZero<<<1,numcells>>>(cell_list.devicePtr,numcells);
             SetToZero<<<1,numcells>>>(particle_list.devicePtr,numparticles);
@@ -121,34 +131,19 @@ int main(int argc, const char * argv[]) {
 
             // Update the Position
             updatePosition<<<num_blocks,threads_per_blocks>>>(forcenew.devicePtr,position.devicePtr,velocity.devicePtr,mass.devicePtr,numparticles,timestep_length,const_args.devicePtr);
-            cudaDeviceSynchronize();
-            std::cout<<"Position updated.........."<<std::endl;
 
             // Copy the forces
             copyForces<<<num_blocks,threads_per_blocks>>>(forceold.devicePtr,forcenew.devicePtr, numparticles);
-            cudaDeviceSynchronize();
-            std::cout<<"Forces copied"<<std::endl;
+
 
             // Calculate New forces
             calcForces<<<num_blocks,threads_per_blocks>>>(forcenew.devicePtr,position.devicePtr,numparticles, sigma,epsilon,r_cut,const_args.devicePtr);
-            cudaDeviceSynchronize();
-            std::cout<<"Forces calculated"<<std::endl;
+
 
             // Update the velocity
             updateVelocity<<<num_blocks,threads_per_blocks>>>(forcenew.devicePtr,forceold.devicePtr,velocity.devicePtr,mass.devicePtr,numparticles,timestep_length);
-            cudaDeviceSynchronize();
-            cudaPeekAtLastError();
-            std::cout<<"Velocities updated"<<std::endl;
-            time_taken += time.elapsed();
 
-            if(iter % vtk_out_freq == 0){
-                // copy to host back
-                forcenew.copyToHost();
-                forceold.copyToHost();
-                position.copyToHost();
-                velocity.copyToHost();
-                writer.writeVTKOutput(mass,position,velocity,numparticles);
-            }
+            time_taken += time.elapsed();
 
             // Iterator count
             ++iter ;

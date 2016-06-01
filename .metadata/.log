@@ -1,0 +1,108 @@
+!SESSION 2016-05-29 11:28:51.786 -----------------------------------------------
+eclipse.buildId=4.4.2.M20150204-1700
+java.version=1.7.0_101
+java.vendor=Oracle Corporation
+BootLoader constants: OS=linux, ARCH=x86_64, WS=gtk, NL=en_US
+Framework arguments:  -product org.eclipse.epp.package.java.product
+Command-line arguments:  -os linux -ws gtk -arch x86_64 -product org.eclipse.epp.package.java.product
+
+!ENTRY org.eclipse.jface 2 0 2016-05-29 11:29:26.606
+!MESSAGE Keybinding conflicts occurred.  They may interfere with normal accelerator operation.
+!SUBENTRY 1 org.eclipse.jface 2 0 2016-05-29 11:29:26.606
+!MESSAGE A conflict occurred for ALT+CTRL+U:
+Binding(ALT+CTRL+U,
+	ParameterizedCommand(Command(de.innot.avreclipse.commands.uploadproject,Upload Project,
+		Upload selected project to the target device,
+		Category(de.innot.avreclipse.commands,AVR,AVR Plugin commands,true),
+		org.eclipse.ui.internal.WorkbenchHandlerServiceHandler@1700cdc9,
+		,,true),null),
+	org.eclipse.ui.defaultAcceleratorConfiguration,
+	org.eclipse.ui.contexts.window,,,system)
+Binding(ALT+CTRL+U,
+	ParameterizedCommand(Command(org.eclipse.team.svn.ui.command.UpdateCommand,Update,
+		,
+		Category(org.eclipse.team.svn.ui.command.category,SVN,null,true),
+		org.eclipse.ui.internal.WorkbenchHandlerServiceHandler@35c652eb,
+		,,true),null),
+	org.eclipse.ui.defaultAcceleratorConfiguration,
+	org.eclipse.ui.contexts.window,,,system)
+
+!ENTRY org.eclipse.core.net 1 0 2016-05-29 11:29:27.864
+!MESSAGE System property http.proxyHost is set to wwwproxy.informatik.uni-erlangen.de but should not be set.
+
+!ENTRY org.eclipse.core.net 1 0 2016-05-29 11:29:27.866
+!MESSAGE System property http.proxyPort is set to 8080 but should not be set.
+
+!ENTRY org.eclipse.core.net 1 0 2016-05-29 11:29:27.890
+!MESSAGE System property http.proxyHost is set to wwwproxy.informatik.uni-erlangen.de but should not be set.
+
+!ENTRY org.eclipse.core.net 1 0 2016-05-29 11:29:27.892
+!MESSAGE System property http.proxyPort is set to 8080 but should not be set.
+!SESSION 2016-05-29 11:30:20.368 -----------------------------------------------
+eclipse.buildId=4.4.2.M20150204-1700
+java.version=1.7.0_101
+java.vendor=Oracle Corporation
+BootLoader constants: OS=linux, ARCH=x86_64, WS=gtk, NL=en_US
+Framework arguments:  -product org.eclipse.epp.package.java.product
+Command-line arguments:  -os linux -ws gtk -arch x86_64 -product org.eclipse.epp.package.java.product
+
+!ENTRY org.eclipse.jface 2 0 2016-05-29 11:30:32.302
+!MESSAGE Keybinding conflicts occurred.  They may interfere with normal accelerator operation.
+!SUBENTRY 1 org.eclipse.jface 2 0 2016-05-29 11:30:32.302
+!MESSAGE A conflict occurred for ALT+CTRL+U:
+Binding(ALT+CTRL+U,
+	ParameterizedCommand(Command(de.innot.avreclipse.commands.uploadproject,Upload Project,
+		Upload selected project to the target device,
+		Category(de.innot.avreclipse.commands,AVR,AVR Plugin commands,true),
+		org.eclipse.ui.internal.WorkbenchHandlerServiceHandler@7dfda879,
+		,,true),null),
+	org.eclipse.ui.defaultAcceleratorConfiguration,
+	org.eclipse.ui.contexts.window,,,system)
+Binding(ALT+CTRL+U,
+	ParameterizedCommand(Command(org.eclipse.team.svn.ui.command.UpdateCommand,Update,
+		,
+		Category(org.eclipse.team.svn.ui.command.category,SVN,null,true),
+		org.eclipse.ui.internal.WorkbenchHandlerServiceHandler@183fe08e,
+		,,true),null),
+	org.eclipse.ui.defaultAcceleratorConfiguration,
+	org.eclipse.ui.contexts.window,,,system)
+
+!ENTRY org.eclipse.core.net 1 0 2016-05-29 11:30:41.579
+!MESSAGE System property http.proxyHost is set to wwwproxy.informatik.uni-erlangen.de but should not be set.
+
+!ENTRY org.eclipse.core.net 1 0 2016-05-29 11:30:41.581
+!MESSAGE System property http.proxyPort is set to 8080 but should not be set.
+
+!ENTRY org.eclipse.core.net 1 0 2016-05-29 11:30:41.950
+!MESSAGE System property http.proxyHost is set to wwwproxy.informatik.uni-erlangen.de but should not be set.
+
+!ENTRY org.eclipse.core.net 1 0 2016-05-29 11:30:41.952
+!MESSAGE System property http.proxyPort is set to 8080 but should not be set.
+
+!ENTRY org.eclipse.cdt.core 1 0 2016-05-29 11:36:15.645
+!MESSAGE Indexed 'MolDynAccn' (0 sources, 0 headers) in 0.003 sec: 0 declarations; 0 references; 0 unresolved inclusions; 0 syntax errors; 0 unresolved names (0%)
+
+!ENTRY org.eclipse.core.resources 4 77 2016-05-29 11:37:38.293
+!MESSAGE Invalid project description.
+!SUBENTRY 1 unknown 0 0 2016-05-29 11:37:38.293
+!MESSAGE OK
+!SUBENTRY 1 org.eclipse.core.resources 4 77 2016-05-29 11:37:38.293
+!MESSAGE /home/cip/ce/yl24ized/HESPA/Molecular_Dyna_Accn overlaps the workspace location: /home/cip/ce/yl24ized/HESPA/Molecular_Dyna_Accn
+
+!ENTRY org.eclipse.core.resources 2 2 2016-05-29 11:40:43.255
+!MESSAGE Save operation warnings.
+!SUBENTRY 1 org.eclipse.core.resources 2 234 2016-05-29 11:40:43.255
+!MESSAGE The project description file (.project) for 'MolDynAccn' was missing.  This file contains important information about the project.  A new project description file has been created, but some information about the project may have been lost.
+
+!ENTRY org.eclipse.cdt.core 1 0 2016-05-29 11:40:43.321
+!MESSAGE Indexed 'moldyn' (0 sources, 0 headers) in 0.002 sec: 0 declarations; 0 references; 0 unresolved inclusions; 0 syntax errors; 0 unresolved names (0%)
+
+!ENTRY org.eclipse.ui.ide 4 4 2016-05-29 11:41:26.249
+!MESSAGE Problems saving workspace
+
+!ENTRY org.eclipse.ui.ide 2 1 2016-05-29 11:41:26.251
+!MESSAGE Problems occurred while trying to save the state of the workbench.
+!SUBENTRY 1 org.eclipse.core.resources 2 234 2016-05-29 11:41:26.251
+!MESSAGE The project description file (.project) for 'MolDynAccn' was missing.  This file contains important information about the project.  A new project description file has been created, but some information about the project may have been lost.
+!SUBENTRY 1 org.eclipse.core.resources 2 234 2016-05-29 11:41:26.251
+!MESSAGE The project description file (.project) for 'moldyn' was missing.  This file contains important information about the project.  A new project description file has been created, but some information about the project may have been lost.
