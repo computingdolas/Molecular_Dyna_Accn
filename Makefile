@@ -6,10 +6,19 @@ CCg = g++
 CFLAGScuda = -std=c++11 -arch sm_20 -O3 
 CC = nvcc
 
-all	:particle
+all	:particle cell par neighboure
 
 particle	:Parser.o VTKWriter.o Time.o 
-		$(CC) $(CFLAGScuda) Parser.o VTKWriter.o Time.o Simulation.cu -o hesp
+		$(CC) $(CFLAGScuda) Parser.o VTKWriter.o Time.o Simulation.cu -o brute
+
+cell		:Parser.o VTKWriter.o Time.o
+		$(CC) $(CFLAGScuda) Parser.o VTKWriter.o Time.o CellParallel.cu -o cell
+
+par		:Parser.o VTKWriter.o Time.o
+		$(CC) $(CFLAGScuda) Parser.o VTKWriter.o Time.o ParticleParallel.cu -o parp
+
+neighboure	:Parser.o VTKWriter.o Time.o
+		$(CC) $(CFLAGScuda) Parser.o VTKWriter.o Time.o NeighbourList.cu -o neighbl
 
 Parser.o	:Parser.cpp
 		$(CCg) $(CFLAGS) Parser.cpp
