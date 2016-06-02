@@ -53,6 +53,7 @@ int main(int argc, const char * argv[]) {
     cudaDeviceBuffer<real_l> cell_list(numcells,PhysicalQuantity::Scalar);
     cudaDeviceBuffer<real_l> particle_list(numparticles,PhysicalQuantity::Scalar);
     cudaDeviceBuffer<real_d> const_args(9,PhysicalQuantity::Scalar);
+    cudaDeviceBuffer<real_l> num_cells(3,PhysicalQuantity::Scalar);
 
     //Initiliazing the buffers for mass,velocity and position
     p.fillBuffers(mass,velocity,position);
@@ -68,6 +69,11 @@ int main(int argc, const char * argv[]) {
     const_args[7] = len_y;
     const_args[8] = len_z;
 
+    //Number of cells per dimension
+    num_cells[0] = xn;
+    num_cells[1] = yn;
+    num_cells[2] = zn;
+
     // Allocating memory on Device
     mass.allocateOnDevice();
     position.allocateOnDevice();
@@ -77,6 +83,7 @@ int main(int argc, const char * argv[]) {
     cell_list.allocateOnDevice();
     particle_list.allocateOnDevice();
     const_args.allocateOnDevice();
+    num_cells.allocateOnDevice();
 
     //Copy to Device
     mass.copyToDevice();
@@ -87,7 +94,7 @@ int main(int argc, const char * argv[]) {
     cell_list.copyToDevice();
     particle_list.copyToDevice();
     const_args.copyToDevice();
-
+    num_cells.copyToDevice();
 
     VTKWriter writer(vtk_name) ;
 
@@ -125,7 +132,7 @@ int main(int argc, const char * argv[]) {
             SetToZero<<<1,numcells>>>(particle_list.devicePtr,numparticles);
 
             //Update the linked list
-            updateLists<<<1,numcells>>>(cell_list.devicePtr,particle_list.devicePtr,position.devicePtr,const_args.devicePtr,numparticles);
+            updateLists<<<1,numcells>>>(cell_list.devicePtr,particle_list.devicePtr,position.devicePtr,const_args.devicePtr,num_cells.devicePtr,numparticles);
             cudaDeviceSynchronize();
             std::cout<<"Lists updated.........."<<std::endl;
 
@@ -137,6 +144,7 @@ int main(int argc, const char * argv[]) {
 
 
             // Calculate New forces
+            SetToZero<<<1,numparticles>>>(forcenew.devicePtr,numparticles);
             calcForces<<<num_blocks,threads_per_blocks>>>(forcenew.devicePtr,position.devicePtr,numparticles, sigma,epsilon,r_cut,const_args.devicePtr);
 
 

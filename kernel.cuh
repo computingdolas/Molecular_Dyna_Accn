@@ -33,10 +33,6 @@ __global__ void  calcForces(real_d *force,const real_d *position,const real_l nu
     for(real_l i=0;i<3;i++){
         dom_length[i] = const_args[i*2+1]-const_args[i*2];
     }
-    // Initialising the force again to zero
-    for (real_l i =0 ; i < numParticles * 3;++ i ){
-	force[i] = 0.0 ; 
-    }
 
 
     // for loop to initialise the vector with appropriate values
@@ -71,6 +67,175 @@ __global__ void  calcForces(real_d *force,const real_d *position,const real_l nu
         }
     }
 }
+}
+
+//Return globalID given the thread indices
+__device__ real_l globalID(const real_l x, const real_l y, const real_l z, const real_l *numcells){
+    return (z*(numcells[0]*numcells[1]) + y*numcells[0] + x);
+}
+
+//Return the vector of global indices of the neighbouring cells
+__device__ void findNeighbours(const real_l idx, const real_l idy,  const real_l idz, const real_l *numcells,real_l *index_vec){
+
+    real_l temp_x,temp_y,temp_z;
+
+    real_l count = 0;
+    for(int i=-1;i <=1;i++ ){
+        for(int j=-1;j <=1;j++ ){
+            for(int k=-1;k <=1;k++){
+                if(i != 0 || j!= 0  || k != 0){
+                    temp_x = (idx+i+numcells[0])%numcells[0];
+                    temp_y = (idy+j+numcells[1])%numcells[1];
+                    temp_z = (idz+k+numcells[2])%numcells[2];
+
+                    index_vec[count] = globalID(temp_x,temp_y,temp_z,numcells);
+                    count++;
+                }
+            }
+        }
+    }
+}
+
+
+__device__ void addForces(const real_l particle_id, const real_l neighbour_id, real_d* relativeVector,\
+                     real_d *forceVector, real_d *force, const real_d* position, const real_d sigma,\
+                     const real_d epsilon, const real_d rcutoff, const real_d *dom_length){
+    real_l vidxp  = particle_id*3;
+    real_l vidxn = neighbour_id*3;
+
+    // Find out the realtive vector
+    relativeVector[0] = position[vidxp] - position[vidxn] ;
+    relativeVector[1] = position[vidxp+1] - position[vidxn+1] ;
+    relativeVector[2] = position[vidxp+2] - position[vidxn+2] ;
+
+    minDist(relativeVector,&position[vidxp],&position[vidxn], dom_length);
+
+    // Find the magnitude of relative vector and if it is less than cuttoff radius , then potential is evaluated otherwise , explicitly zero force is given
+    // Magnitude of relative vector
+    if(norm(relativeVector) < rcutoff){
+        // Find the force between these tow particle
+        lenardJonesPotential(relativeVector,forceVector ,sigma,epsilon) ;
+        force[vidxp]   +=  forceVector[0] ;
+        force[vidxp+1] +=  forceVector[1] ;
+        force[vidxp+2] +=  forceVector[2] ;
+    }
+    else{
+        force[vidxp]   +=  0.0 ;
+        force[vidxp+1] +=  0.0 ;
+        force[vidxp+2] +=  0.0 ;
+    }
+
+}
+
+//Calculate Forces using a cell parallel approach. Will be launched using a 3d grid of threads
+__global__ void calcForcesCellPar(real_d *force, const real_d *position,const real_d sigma,\
+                                  const real_d epsilon, const real_d rcutoff, const real_d *const_args,\
+                                  const real_l* numcells, const real_l *cell_list, const real_l *particle_list){
+    real_l idx = threadIdx.x+blockIdx.x*blockDim.x;
+    real_l idy = threadIdx.y+blockIdx.y*blockDim.y;
+    real_l idz = threadIdx.z+blockIdx.z*blockDim.z;
+
+    // Relative Vector
+    real_d relativeVector[3] = {0.0,0.0,0.0} ;
+
+    //Force Vector
+    real_d forceVector[3] = {0.0000000000,0.00000000000,0.0000000000} ;
+
+    //Domain lengths
+    real_d dom_length[3] = {0.0,0.0,0.0};
+    for(real_l i=0;i<3;i++){
+        dom_length[i] = const_args[i*2+1]-const_args[i*2];
+    }
+
+    //global id of the cell
+    real_l id_g = globalID(idx,idy,idz,numcells);
+
+    real_l particle_id,head_id;
+    //Since there will be 26 neighbours
+    real_l index_vec[26];
+
+    if(idx < numcells[0] && idy < numcells[1] && idz < numcells[2]){
+        //Since we have to iterate through the linked lists for neighbouring cells as well
+        findNeighbours(idx,idy,idz,numcells,index_vec);
+
+        //Calculate the forces for every particle in the cell
+        particle_id = cell_list[id_g]-1;
+        while(particle_id != 0){
+            //Iterate through own list
+            head_id = cell_list[id_g]-1;
+            for(real_l curr_id = head_id;curr_id != 0;curr_id = particle_list[curr_id]-1){
+                if(curr_id != particle_id)
+                    addForces(particle_id,curr_id,relativeVector,forceVector,force,position,sigma,epsilon,rcutoff,dom_length);
+            }
+
+            //Iterate through the neighbouring cells's lists
+            for(real_l i=0;i<26;i++){
+                head_id = cell_list[index_vec[i]]-1;
+                for(real_l curr_id = head_id;curr_id != 0;curr_id = particle_list[curr_id]-1){
+                    if(curr_id != particle_id)
+                        addForces(particle_id,curr_id,relativeVector,forceVector,force,position,sigma,epsilon,rcutoff,dom_length);
+                }
+            }
+
+            particle_id = particle_list[particle_id]-1;
+        }
+
+    }
+
+}
+
+//Calculate Forces using a particle parallel approach. Will be launched using a 1d grid of threads
+__global__ void  calcForcesParPar(real_d *force,const real_d *position,const real_d sigma,\
+                                  const real_d epsilon,const real_d rcutoff, const real_d * const_args,\
+                                  const real_l* numcells, const real_l *cell_list, const real_l *particle_list,const real_l numparticles){
+
+
+    real_l idx = threadIdx.x + blockIdx.x * blockDim.x ;
+
+    if(idx < numparticles){
+        real_l vidxp = idx * 3 ;
+
+        // Relative Vector
+        real_d relativeVector[3] = {0.0,0.0,0.0} ;
+
+        //Force Vector
+        real_d forceVector[3] = {0.0000000000,0.00000000000,0.0000000000} ;
+
+        //Domain lengths
+        real_d dom_length[3] = {0.0,0.0,0.0};
+        for(real_l i=0;i<3;i++){
+            dom_length[i] = const_args[i*2+1]-const_args[i*2];
+        }
+
+        //Find the global ID of the cells
+        real_l cx = position[vidxp]/const_args[6],cy = position[vidxp+1]/const_args[7],cz = position[vidxp+2]/const_args[8];
+        real_l cell_ind = globalID(cx,cy,cz,numcells);
+
+        //Find the neighbours of the cell
+        real_l index_vec[26];
+        findNeighbours(cx,cy,cz,numcells,index_vec);
+
+        //Calculate the forces
+
+        //Iterate through own list
+        real_l head_id = cell_list[cell_ind]-1;
+        for(real_l curr_id = head_id;curr_id != 0;curr_id = particle_list[curr_id]-1){
+           if(curr_id != idx)
+                addForces(idx,curr_id,relativeVector,forceVector,force,position,sigma,epsilon,rcutoff,dom_length);
+        }
+
+        //Iterate through the neighbouring cells's lists
+        for(real_l i=0;i<26;i++){
+            head_id = cell_list[index_vec[i]]-1;
+            for(real_l curr_id = head_id;curr_id != 0;curr_id = particle_list[curr_id]-1){
+                if(curr_id != idx)
+                    addForces(idx,curr_id,relativeVector,forceVector,force,position,sigma,epsilon,rcutoff,dom_length);
+            }
+        }
+
+    }
+
+
 }
 
 // Finding out the minimum distance between two particle keeping in mind the periodic boundary condition
@@ -214,54 +379,49 @@ __device__ bool InRange(real_d x1,real_d x2, real_d value, const  real_d  *const
 
 
 //Reset the buffer with 0s
-__global__ void SetToZero(real_l *buffer, real_l buffer_size){
+template <typename T>__global__ void SetToZero(T *buffer, real_l buffer_size){
     int idx = threadIdx.x+blockIdx.x*blockDim.x;
     if(idx < buffer_size){
         buffer[idx] = 0;
     }
 }
 
-//To update the linked lists after every iteration . This kernel should be launched using 3d thread blocks
-__global__ void updateLists(real_l *cell_list, real_l *particle_list, const real_d *position, const real_d *const_args, const real_l num_particles){
-
+//To update the linked lists after every iteration. This kernel should be launched using 3d thread blocks
+__global__ void updateLists(real_l *cell_list, real_l *particle_list, const real_d *position, const real_d *const_args, const real_l* numcells, const real_l num_particles){
     real_l idx = threadIdx.x+blockIdx.x*blockDim.x;
     real_l idy = threadIdx.y+blockIdx.y*blockDim.y;
     real_l idz = threadIdx.z+blockIdx.z*blockDim.z;
-    
-    real_l id_g = idz*(gridDim.x*blockDim.x*gridDim.y*blockDim.y) + idy*(gridDim.x*blockDim.x) + idx;
 
-    //Finding the coordinates
-    real_l lx_min = const_args[0]+const_args[6]*idx;
-    real_l ly_min = const_args[2]+const_args[7]*idy;
-    real_l lz_min = const_args[4]+const_args[8]*idz;
-
+    real_l id_g = globalID(idx,idy,idz,numcells);
     real_l temp_id = 0;
-    cell_list[id_g] = 0;
 
-    real_l i = 0;
-    //Iterate through all the particles and fill in both lists
-    for(i=0;i<num_particles;i++){
-        if(InRange(lx_min,lx_min+const_args[6],position[3*i],const_args,0)\
-           && InRange(ly_min,ly_min+const_args[7],position[3*i+1],const_args,1)\
-           && InRange(lz_min,lz_min+const_args[8],position[3*i+2],const_args,2)){
-            if(cell_list[id_g] == 0){
-                cell_list[id_g] = i+1;
-            }
-            else{
-                temp_id = cell_list[id_g]-1;
-                while(particle_list[temp_id] != 0){
-                    temp_id = particle_list[temp_id]-1;
+     if(idx < numcells[0] && idy < numcells[1] && idz < numcells[2]){
+        //Finding the coordinates
+        real_l lx_min = const_args[0]+const_args[6]*idx;
+        real_l ly_min = const_args[2]+const_args[7]*idy;
+        real_l lz_min = const_args[4]+const_args[8]*idz;
+
+        cell_list[id_g] = 0;
+
+        //Compare and swap to fill the lists
+        for(real_l i=0;i<num_particles;i++){
+            if(InRange(lx_min,lx_min+const_args[6],position[3*i],const_args,0)\
+                && InRange(ly_min,ly_min+const_args[7],position[3*i+1],const_args,1)\
+                && InRange(lz_min,lz_min+const_args[8],position[3*i+2],const_args,2)){
+
+                    temp_id = particle_list[i];
+                    particle_list[i] = cell_list[id_g];
+                    cell_list[id_g] = temp_id;
+
                 }
-                particle_list[temp_id] = i+1;
-                particle_list[i] = 0;
-            }
         }
+
     }
 }
 
 
 // Update the list in particle parallel
-__global__ void updateListParticleParallel(real_l * cell_list, real_l * particle_list, const real_d  * const_args, const real_l num_particles ,const  real_d * position, const real_l * numcell  ) {
+__global__ void updateListParPar(real_l * cell_list, real_l * particle_list, const real_d  * const_args, const real_l num_particles ,const  real_d * position, const real_l * numcell  ) {
 
     real_l idx = threadIdx.x+blockIdx.x*blockDim.x;
 

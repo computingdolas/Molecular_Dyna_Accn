@@ -11,7 +11,7 @@
 
 typedef double real_d ;
 typedef float real_f ;
-typedef unsigned long real_l ;
+typedef unsigned int real_l ;
 typedef long double real_ld ;
 
 
