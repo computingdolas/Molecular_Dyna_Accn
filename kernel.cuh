@@ -419,7 +419,13 @@ __global__ void updateLists(real_l *cell_list, real_l *particle_list, const real
     }
 }
 
-
+//Initialize particle list
+__global__ void initializeParticleList(real_d *particle_list, const real_l numparticles){
+    real_l idx = blockDim.x*blockIdx.x+threadIdx.x;
+    if(idx < numparticles){
+        particle_list[idx] = idx+1;
+    }
+}
 // Update the list in particle parallel
 __global__ void updateListParPar(real_l * cell_list, real_l * particle_list, const real_d  * const_args, const real_l num_particles ,const  real_d * position, const real_l * numcell  ) {
 
