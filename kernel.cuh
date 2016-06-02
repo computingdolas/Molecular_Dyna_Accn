@@ -40,7 +40,6 @@ __global__ void  calcForces(real_d *force,const real_d *position,const real_l nu
 
 
     // for loop to initialise the vector with appropriate values
-
     for (real_l i = 0 ; i < numParticles ; ++i){
         if(i != idx){
             // Find out the index of particle
@@ -222,8 +221,9 @@ __global__ void SetToZero(real_l *buffer, real_l buffer_size){
     }
 }
 
-//To update the linked lists after every iteration using a cell parallel approach. This kernel should be launched using 3d thread blocks
+//To update the linked lists after every iteration . This kernel should be launched using 3d thread blocks
 __global__ void updateLists(real_l *cell_list, real_l *particle_list, const real_d *position, const real_d *const_args, const real_l num_particles){
+
     real_l idx = threadIdx.x+blockIdx.x*blockDim.x;
     real_l idy = threadIdx.y+blockIdx.y*blockDim.y;
     real_l idz = threadIdx.z+blockIdx.z*blockDim.z;
@@ -259,19 +259,148 @@ __global__ void updateLists(real_l *cell_list, real_l *particle_list, const real
     }
 }
 
-//To update the linked lists after every iteration using a particle parallel approach. This kernel should be launched using 1d thread blocks
-__global__ void updateListsPp(real_l *cell_list, real_l *particle_list, const real_d *position, const real_d *const_args, const real_l num_particles){
+
+// Update the list in particle parallel
+__global__ void updateListParticleParallel(real_l * cell_list, real_l * particle_list, const real_d  * const_args, const real_l num_particles ,const  real_d * position, const real_l * numcell  ) {
+
     real_l idx = threadIdx.x+blockIdx.x*blockDim.x;
 
-    real_l index  = idx*3;
+    if (idx < num_particles) {
 
-    //Finding the cell indices
-    real_l x_id = position[index]/const_args[6];
-    real_l y_id = position[index+1]/const_args[7];
-    real_l z_id = position[index+2]/const_args[8];
+        // Finding the index of the particles
+        real_l  vidxp = idx * 3 ;
 
+        // Finding the cordinates of the particle
+        real_d pos[3] = {position[vidxp], position[vidxp+1], position[vidxp+2] } ;
 
+        // Find the ... cordinate of the cell it lies and register it their using atomic operations
+        real_l i = pos[0] / const_args[6] ;
+        real_l j = pos[1] / const_args[7] ;
+        real_l k = pos[2]/ const_args[8];
+
+        // Find the global id of the cell
+        real_l cellindex = i + j * numcell[0] + numcell[0] * numcell[1] * k ;
+
+        // See whether that cell has already has some master particle , and if not assign itself to it and
+        real_l old = atomicExch(&cell_list[cellindex] ,idx+1);
+        particle_list[idx] = old ;
+    }
 }
+
+__global__ void formNeighbourList(real_l * neighbourList,const real_d * position, const real_d * const_args, const real_l numparticles,const real_d rcutoff ){
+
+    real_l idx = threadIdx.x+blockIdx.x*blockDim.x;
+
+    if(idx < numparticles ){
+
+        // Relative Vector
+        real_d relativeVector[3] = {0.0,0.0,0.0} ;
+
+        // Domain length vector
+        real_d dom_length[3] = {0.0,0.0,0.0} ;
+        for(real_l i=0;i<3;i++){
+            dom_length[i] = const_args[i*2+1]-const_args[i*2];
+        }
+
+        // Index of the particle forming the neighbour list
+        real_l vidxp = idx * 3 ;
+
+        // Index of particle in the neighbour list array
+        real_l nidx = idx * numparticles ;
+        real_l iter = 0 ;
+
+        // Sweep across all particles
+        for(real_l i =0 ; i < numparticles ; ++i){
+
+            if( i !=idx ) {
+
+                //Find out th index of the self and the neighbouring particles
+                real_l vidxn = i * 3 ;
+
+                // Find out the position of the neighbour particle
+                relativeVector[0] = position[vidxp] - position[vidxn] ;
+                relativeVector[1] = position[vidxp+1] - position[vidxn+1] ;
+                relativeVector[2] = position[vidxp+2] - position[vidxn+2] ;
+
+                // Find out the optimal distance , keeping in mind the periodic boundary condition in mind
+                minDist(relativeVector,&position[vidxp],&position[vidxn],dom_length);
+
+                // If norm of the relative vector is less than rcuttoff , then  just include the particle in the neighbour list - constant can we decided arbitarily
+                if (norm(relativeVector) < (1.5 * rcutoff)){
+                     neighbourList[nidx + iter] = i ;
+                     ++iter ;
+                }
+            }
+         }
+        neighbourList[nidx + iter] = idx ;
+     }
+}
+
+__global__ void calcForcesNeighbourList(real_d *force, const real_l * neighbourList,const real_l numParticles, const real_d * const_args,const real_d * position,const real_d sigma, const real_d epislon){
+
+    // Calculate the index of the particle
+    real_l idx = threadIdx.x + blockIdx.x * blockDim.x;
+
+    if(idx < numParticles){
+
+        // Relative Vector
+        real_d relativeVector[3] = {0.0,0.0,0.0} ;
+
+        // Domain length
+        real_d dom_length[3] = {0.0,0.0,0.0} ;
+        for(real_l i=0;i<3;i++){
+            dom_length[i] = const_args[i*2+1]-const_args[i*2] ;
+        }
+
+        // Force vector dummy
+        real_d forceVector[3] = {0.0,0.0,0.0} ;
+
+        // Initialising the force again to zero , so that it doest not accumulate , into force array
+        for (real_l i =0 ; i < numParticles * 3;++ i ){
+        force[i] = 0.0 ;
+        }
+
+        //Index of particle calculating the forces due to other particles
+        real_l vidxp = idx * 3 ;
+
+        // Traverse the neighbour list uptill this particle encounter itself
+        {
+
+            // Declaring the iterator
+            real_l i = 0 ;
+            while (neighbourList[i] != idx){
+
+                // Find out the index of particle in the particle array
+                real_l vidxn = neighbourList[i] * 3 ;
+
+                // Find out the relative vector between the two particle
+                relativeVector[0] = position[vidxp] - position[vidxn]  ;
+                relativeVector[1] = position[vidxp+1] - position[vidxn+1]  ;
+                relativeVector[2] = position[vidxp+2] - position[vidxn+2]  ;
+
+                // Find out the optimal distance keeping in mind the periodic boundary conditions
+                minDist(relativeVector,&position[vidxp],&position[vidxn],dom_length) ;
+
+                //  Find out the forces between two particles , we do not consider other case of non zero force
+                lenardJonesPotential(relativeVector,forceVector ,sigma,epislon)  ;
+
+                // Add the forces cumulatively
+                force[vidxp]     +=  forceVector[0]  ;
+                force[vidxp+1] +=  forceVector[1]  ;
+                force[vidxp+2] +=  forceVector[2]  ;
+
+                // Increase the iterator ..
+                ++i ;
+            }
+        }
+    }
+}
+
+
+
+
+
+
 
 
 
